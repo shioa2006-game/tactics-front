@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Tactics Game - Batch Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      font-family: monospace;
+      padding: 24px;
+    }
+
+    h1 { font-size: 20px; margin-bottom: 20px; color: #7ec8e3; }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .controls label { font-size: 13px; color: #aaa; }
+
+    select {
+      background: #16213e;
+      color: #e0e0e0;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background: #0f3460;
+      color: #fff;
+      border: 1px solid #4a90d9;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: #1a5276; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #progress-text {
+      font-size: 14px;
+      color: #aaa;
+    }
+
+    #progress-bar-wrapper {
+      background: #333;
+      border-radius: 4px;
+      height: 12px;
+      width: 100%;
+      max-width: 500px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      background: #4a90d9;
+      height: 100%;
+      width: 0%;
+      transition: width 0.1s;
+    }
+
+    .result-box {
+      background: #16213e;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 20px;
+      max-width: 520px;
+    }
+
+    .result-box h2 {
+      font-size: 14px;
+      color: #aaa;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px solid #2a2a4a;
+      font-size: 13px;
+    }
+    .result-row:last-child { border-bottom: none; }
+    .result-label { color: #aaa; }
+    .result-value { color: #fff; font-weight: bold; }
+    .result-value.balanced  { color: #50e096; }
+    .result-value.unbalanced { color: #e07070; }
+
+    .matchup-title {
+      font-size: 15px;
+      color: #7ec8e3;
+      margin-bottom: 10px;
+    }
+
+    #copy-btn {
+      margin-top: 16px;
+      width: 100%;
+      padding: 8px;
+      background: #0f4a30;
+      color: #50e096;
+      border: 1px solid #50e096;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #copy-btn:hover { background: #1a6b44; }
+    #copy-btn.copied {
+      background: #1a6b44;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Batch Test — Phase 2</h1>
+
+<!-- 設定コントロール -->
+<div class="controls">
+  <label>Player AI:
+    <select id="player-ai">
+      <option value="MinMaxAI">MinMaxAI</option>
+      <option value="AggressiveAI">AggressiveAI</option>
+      <option value="DefensiveAI">DefensiveAI</option>
+      <option value="TerritorialAI">TerritorialAI</option>
+      <option value="GreedyAI">GreedyAI</option>
+      <option value="RandomAI">RandomAI</option>
+    </select>
+  </label>
+  <label>CPU AI:
+    <select id="cpu-ai">
+      <option value="AggressiveAI">AggressiveAI</option>
+      <option value="DefensiveAI">DefensiveAI</option>
+      <option value="TerritorialAI">TerritorialAI</option>
+      <option value="MinMaxAI">MinMaxAI</option>
+      <option value="GreedyAI">GreedyAI</option>
+      <option value="RandomAI">RandomAI</option>
+    </select>
+  </label>
+  <label>対戦数:
+    <select id="num-games">
+      <option value="100">100戦</option>
+      <option value="200">200戦</option>
+      <option value="50">50戦</option>
+    </select>
+  </label>
+  <button id="run-btn">実行</button>
+  <button id="stop-btn" disabled>中断</button>
+  <span id="progress-text">待機中</span>
+</div>
+
+<div id="progress-bar-wrapper">
+  <div id="progress-bar"></div>
+</div>
+
+<!-- 結果サマリー -->
+<div class="result-box" id="result-box" style="display:none;">
+  <div class="matchup-title" id="r-matchup">-</div>
+  <h2>結果サマリー</h2>
+  <div class="result-row">
+    <span class="result-label">総対戦数</span>
+    <span class="result-value" id="r-total">-</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">Player (左側AI) 勝率</span>
+    <span class="result-value" id="r-player-wr">-</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">CPU (右側AI) 勝率</span>
+    <span class="result-value" id="r-cpu-wr">-</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">引き分け率</span>
+    <span class="result-value" id="r-draw-wr">-</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">平均ターン数</span>
+    <span class="result-value" id="r-avg-turns">-</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">ゲーム完走率（50T到達）</span>
+    <span class="result-value" id="r-completion">-</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">平均スコア（Player）</span>
+    <span class="result-value" id="r-avg-player-score">-</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">平均スコア（CPU）</span>
+    <span class="result-value" id="r-avg-cpu-score">-</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">バランス判定</span>
+    <span class="result-value" id="r-balance">-</span>
+  </div>
+  <button id="copy-btn">📋 結果をコピー</button>
+</div>
+
+<!-- ゲームロジックのみ（描画系は不要） -->
+<script src="src/game/Map.js"></script>
+<script src="src/game/Unit.js"></script>
+<script src="src/game/Knight.js"></script>
+<script src="src/game/Scout.js"></script>
+<script src="src/game/Archer.js"></script>
+<script src="src/game/Cleric.js"></script>
+<script src="src/game/GameState.js"></script>
+<script src="src/game/ActionResolver.js"></script>
+<script src="src/game/TerritoryManager.js"></script>
+<script src="src/game/TurnManager.js"></script>
+<script src="src/ai/BaseAI.js"></script>
+<script src="src/ai/RandomAI.js"></script>
+<script src="src/ai/GreedyAI.js"></script>
+<script src="src/ai/AggressiveAI.js"></script>
+<script src="src/ai/DefensiveAI.js"></script>
+<script src="src/ai/TerritorialAI.js"></script>
+<script src="src/ai/MinMaxAI.js"></script>
+<script src="src/test/stats_collector.js"></script>
+<script src="src/test/batch_runner.js"></script>
+
+<script>
+const runBtn       = document.getElementById('run-btn');
+const stopBtn      = document.getElementById('stop-btn');
+const progressBar  = document.getElementById('progress-bar');
+const progressTxt  = document.getElementById('progress-text');
+const resultBox    = document.getElementById('result-box');
+const playerAISel  = document.getElementById('player-ai');
+const cpuAISel     = document.getElementById('cpu-ai');
+const numGamesSel  = document.getElementById('num-games');
+
+let runner      = null;
+let lastSummary = null; // コピー用に最新サマリーを保持
+
+function pct(ratio) {
+  return (ratio * 100).toFixed(1) + '%';
+}
+
+// クリップボードにコピーするテキストを生成する
+function buildExportText(summary) {
+  const now = new Date();
+  const ts  = now.toLocaleDateString('ja-JP') + ' ' + now.toLocaleTimeString('ja-JP');
+  const sep = '─'.repeat(40);
+  const lines = [
+    '=== Tactics Game Batch Test Results ===',
+    `日時:           ${ts}`,
+    `マッチアップ:   ${summary.playerAI}（Player）  vs  ${summary.cpuAI}（CPU）`,
+    sep,
+    `総対戦数:         ${summary.total} 戦`,
+    `Player 勝率:      ${pct(summary.playerWinRate)}  （${summary.playerWins} 勝）`,
+    `CPU 勝率:         ${pct(summary.cpuWinRate)}  （${summary.cpuWins} 勝）`,
+    `引き分け率:       ${pct(summary.drawRate)}  （${summary.draws} 引き分け）`,
+    `平均ターン数:     ${summary.avgTurns}`,
+    `ゲーム完走率:     ${pct(summary.completionRate)}`,
+    `平均スコア Player: ${summary.avgPlayerScore}`,
+    `平均スコア CPU:    ${summary.avgCpuScore}`,
+    `バランス判定:     ${summary.isBalanced ? '✅ バランス良好（勝率差 ≤ 15%）' : '⚠ アンバランス（勝率差 > 15%）'}`,
+  ];
+  return lines.join('\n');
+}
+
+function showResult(summary) {
+  lastSummary = summary; // コピー用に保存
+  const playerName = summary.playerAI || playerAISel.value;
+  const cpuName    = summary.cpuAI    || cpuAISel.value;
+  document.getElementById('r-matchup').textContent        = `${playerName}（Player）  vs  ${cpuName}（CPU）`;
+  document.getElementById('r-total').textContent           = summary.total;
+  document.getElementById('r-player-wr').textContent      = pct(summary.playerWinRate);
+  document.getElementById('r-cpu-wr').textContent         = pct(summary.cpuWinRate);
+  document.getElementById('r-draw-wr').textContent        = pct(summary.drawRate);
+  document.getElementById('r-avg-turns').textContent      = summary.avgTurns;
+  document.getElementById('r-completion').textContent     = pct(summary.completionRate);
+  document.getElementById('r-avg-player-score').textContent = summary.avgPlayerScore;
+  document.getElementById('r-avg-cpu-score').textContent    = summary.avgCpuScore;
+
+  const balanceEl    = document.getElementById('r-balance');
+  balanceEl.textContent = summary.isBalanced ? '✅ バランス良好（勝率差 ≤ 15%）' : '⚠ アンバランス（勝率差 > 15%）';
+  balanceEl.className   = 'result-value ' + (summary.isBalanced ? 'balanced' : 'unbalanced');
+
+  resultBox.style.display = 'block';
+}
+
+runBtn.addEventListener('click', () => {
+  runBtn.disabled  = true;
+  stopBtn.disabled = false;
+  resultBox.style.display = 'none';
+  progressBar.style.width = '0%';
+
+  const playerAI = playerAISel.value;
+  const cpuAI    = cpuAISel.value;
+  const numGames = parseInt(numGamesSel.value, 10);
+
+  progressTxt.textContent = `${playerAI} vs ${cpuAI} — 実行中...`;
+
+  runner = new BatchRunner(
+    (done, total) => {
+      const ratio = done / total;
+      progressBar.style.width = (ratio * 100) + '%';
+      progressTxt.textContent = `${done} / ${total} 完了`;
+    },
+    (summary) => {
+      progressTxt.textContent = `完了（${summary.total}戦）`;
+      runBtn.disabled  = false;
+      stopBtn.disabled = true;
+      showResult(summary);
+    }
+  );
+
+  runner.setMatchup(playerAI, cpuAI);
+  runner.run(numGames);
+});
+
+stopBtn.addEventListener('click', () => {
+  if (runner) runner.stop();
+  progressTxt.textContent = '中断しました';
+  runBtn.disabled  = false;
+  stopBtn.disabled = true;
+});
+
+// コピーボタン: 結果テキストをクリップボードにコピーする
+document.getElementById('copy-btn').addEventListener('click', () => {
+  if (!lastSummary) return;
+  const text = buildExportText(lastSummary);
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✅ コピー完了!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋 結果をコピー';
+      btn.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    // clipboard API が使えない場合のフォールバック（テキストエリア経由）
+    const ta = document.createElement('textarea');
+    ta.value = buildExportText(lastSummary);
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✅ コピー完了!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋 結果をコピー';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+});
+</script>
+
+</body>
+</html>

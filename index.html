@@ -3,10 +3,547 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Page</title>
+  <title>Tactics Game</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      font-family: monospace;
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      min-height: 100vh;
+    }
+
+    /* キャンバスエリア */
+    #canvas-wrapper {
+      flex-shrink: 0;
+    }
+    #game-canvas {
+      display: block;
+      border: 2px solid #444;
+      cursor: crosshair;
+    }
+
+    /* サイドパネル */
+    #side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 200px;
+    }
+
+    .panel-box {
+      background: #16213e;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .panel-box h2 {
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #turn-display {
+      font-size: 20px;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    #player-display {
+      font-size: 14px;
+      color: #7ec8e3;
+      margin-top: 4px;
+    }
+
+    #score-display {
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    #end-turn-btn {
+      width: 100%;
+      padding: 10px;
+      background: #0f3460;
+      color: #fff;
+      border: 1px solid #4a90d9;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #end-turn-btn:hover:not(:disabled) { background: #1a5276; }
+    #end-turn-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* AI セレクタ / New Game */
+    .ai-controls { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 11px; }
+    .ai-controls label { color: #aaa; white-space: nowrap; }
+    #ai-select {
+      flex: 1;
+      background: #0f3460;
+      color: #fff;
+      border: 1px solid #4a90d9;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 2px 4px;
+      cursor: pointer;
+    }
+    #new-game-btn {
+      padding: 3px 8px;
+      background: #3a1060;
+      color: #c080ff;
+      border: 1px solid #c080ff;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    #new-game-btn:hover { background: #5a2090; }
+
+    /* ユニット情報 */
+    #unit-info {
+      font-size: 12px;
+      line-height: 1.6;
+      min-height: 80px;
+    }
+
+    /* ゲームログ */
+    #log-area {
+      flex: 1;
+      overflow-y: auto;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #bbb;
+      max-height: 260px;
+    }
+    #log-area .log-entry { padding: 1px 0; border-bottom: 1px solid #222; }
+    #log-area .log-move      { color: #7ec8e3; }
+    #log-area .log-attack    { color: #e07070; }
+    #log-area .log-territory { color: #f0c040; }
+    #log-area .log-heal      { color: #50e096; }
+
+    /* ログコピーボタン */
+    #log-copy-btn {
+      padding: 2px 8px;
+      background: #0f3a20;
+      color: #50e096;
+      border: 1px solid #50e096;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    #log-copy-btn:hover { background: #1a6040; }
+
+    /* 凡例 */
+    .legend { display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-color {
+      width: 14px; height: 14px; border-radius: 2px; flex-shrink: 0;
+    }
+  </style>
 </head>
 <body>
-  <h1>Hello, GitHub Pages!</h1>
-  <p>これはGitHub Pagesのテストページです。</p>
+
+<div id="canvas-wrapper">
+  <canvas id="game-canvas" width="800" height="800"></canvas>
+</div>
+
+<div id="side-panel">
+
+  <!-- ターン情報 -->
+  <div class="panel-box">
+    <h2>Status</h2>
+    <div id="turn-display">Turn 1 / 50</div>
+    <div id="player-display">Player Turn</div>
+    <div id="score-display">Player: 0  CPU: 0</div>
+    <div class="ai-controls">
+      <label>CPU:</label>
+      <select id="ai-select">
+        <option value="RandomAI">Random</option>
+        <option value="GreedyAI">Greedy</option>
+        <option value="AggressiveAI">Aggressive</option>
+        <option value="DefensiveAI">Defensive</option>
+        <option value="TerritorialAI">Territorial</option>
+        <option value="MinMaxAI">MinMax</option>
+      </select>
+      <button id="new-game-btn">New Game</button>
+    </div>
+  </div>
+
+  <!-- ターン終了ボタン -->
+  <button id="end-turn-btn">End Turn</button>
+
+  <!-- 選択ユニット情報 -->
+  <div class="panel-box">
+    <h2>Selected Unit</h2>
+    <div id="unit-info">Click a unit to select.</div>
+  </div>
+
+  <!-- 凡例 -->
+  <div class="panel-box">
+    <h2>Legend</h2>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-color" style="background:#90EE90;"></div>Plain
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background:#228B22;"></div>Forest (cost 2)
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background:#696969;"></div>Wall (impassable)
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background:rgba(255,165,0,0.6);"></div>Territory
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background:rgba(100,149,237,0.7);"></div>Movable
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background:rgba(220,50,50,0.7);"></div>Attackable
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background:rgba(0,210,100,0.6);"></div>Healable
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background:rgba(200,170,90,0.5);"></div>High Ground
+      </div>
+    </div>
+  </div>
+
+  <!-- ゲームログ -->
+  <div class="panel-box" style="flex:1; display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+      <h2 style="margin-bottom:0;">Log</h2>
+      <button id="log-copy-btn">📋 ログコピー</button>
+    </div>
+    <div id="log-area"></div>
+  </div>
+
+</div>
+
+<!-- ゲームロジック（依存順にロード） -->
+<script src="src/game/Map.js"></script>
+<script src="src/game/Unit.js"></script>
+<script src="src/game/Knight.js"></script>
+<script src="src/game/Scout.js"></script>
+<script src="src/game/Archer.js"></script>
+<script src="src/game/Cleric.js"></script>
+<script src="src/game/GameState.js"></script>
+<script src="src/game/ActionResolver.js"></script>
+<script src="src/game/TerritoryManager.js"></script>
+<script src="src/game/TurnManager.js"></script>
+
+<!-- AI -->
+<script src="src/ai/BaseAI.js"></script>
+<script src="src/ai/RandomAI.js"></script>
+<script src="src/ai/GreedyAI.js"></script>
+<script src="src/ai/AggressiveAI.js"></script>
+<script src="src/ai/DefensiveAI.js"></script>
+<script src="src/ai/TerritorialAI.js"></script>
+<script src="src/ai/MinMaxAI.js"></script>
+
+<!-- 描画 -->
+<script src="src/renderer/MapRenderer.js"></script>
+<script src="src/renderer/UnitRenderer.js"></script>
+<script src="src/renderer/UIRenderer.js"></script>
+<script src="src/renderer/GameRenderer.js"></script>
+
+<script>
+// ─── ゲーム初期化 ─────────────────────────────────────
+const canvas       = document.getElementById('game-canvas');
+const gameState    = new GameState();
+
+// URL パラメータ ?ai=MinMaxAI|GreedyAI|RandomAI でAI種別を切り替え（デフォルト: MinMaxAI）
+const _urlParams = new URLSearchParams(window.location.search);
+const _aiType    = _urlParams.get('ai') || 'MinMaxAI';
+const cpuAI = (() => {
+  switch (_aiType) {
+    case 'RandomAI':      return new RandomAI('cpu', gameState);
+    case 'GreedyAI':      return new GreedyAI('cpu', gameState);
+    case 'AggressiveAI':  return new AggressiveAI('cpu', gameState);
+    case 'DefensiveAI':   return new DefensiveAI('cpu', gameState);
+    case 'TerritorialAI': return new TerritorialAI('cpu', gameState);
+    default:              return new MinMaxAI('cpu', gameState);
+  }
+})();
+
+const turnManager  = new TurnManager(gameState, null, cpuAI);
+const renderer     = new GameRenderer(canvas, gameState);
+const actionResolver = new ActionResolver(gameState);
+
+const CELL_SIZE = 25;
+
+// 操作状態
+let selectedUnit    = null;
+let phase           = 'select'; // 'select' | 'move' | 'attack'
+
+// ゲーム開始（CPUが先手のため、起動直後にCPUターンを自動実行）
+turnManager.startGame();
+renderer.startLoop();
+executeCpuTurnAsync();
+
+// ─── ユーティリティ ────────────────────────────────────
+function getCellFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x    = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+  const y    = Math.floor((e.clientY - rect.top)  / CELL_SIZE);
+  return { x, y };
+}
+
+function updateUnitInfo(unit) {
+  const el = document.getElementById('unit-info');
+  if (!unit) {
+    el.textContent = 'Click a unit to select.';
+    return;
+  }
+  const actionLine = unit.type === 'Cleric'
+    ? `Moved: ${unit.hasMoved}  Healed: ${unit.hasHealed}`
+    : `Moved: ${unit.hasMoved}  Attacked: ${unit.hasAttacked}`;
+  el.innerHTML =
+    `<b>${unit.id}</b> (${unit.type})<br>` +
+    `HP: ${unit.hp}/${unit.maxHp}<br>` +
+    `ATK: ${unit.attack}  MV: ${unit.moveRange}  RNG: ${unit.attackRange}<br>` +
+    actionLine;
+}
+
+function addLog(text, cssClass) {
+  const logArea = document.getElementById('log-area');
+  const entry   = document.createElement('div');
+  entry.className = `log-entry ${cssClass || ''}`;
+  entry.textContent = text;
+  logArea.prepend(entry);
+  // 最大50件を保持
+  while (logArea.children.length > 50) {
+    logArea.removeChild(logArea.lastChild);
+  }
+}
+
+function refreshHighlights() {
+  if (!selectedUnit) {
+    renderer.attackableTargets = [];
+    renderer.healableTargets   = [];
+    return;
+  }
+  // 攻撃ハイライト（Cleric以外）
+  if (selectedUnit.type !== 'Cleric' && !selectedUnit.hasAttacked) {
+    renderer.attackableTargets = actionResolver.getAttackableTargets(selectedUnit.id);
+  } else {
+    renderer.attackableTargets = [];
+  }
+  // 回復ハイライト（Clericのみ）
+  if (selectedUnit.type === 'Cleric' && !selectedUnit.hasHealed) {
+    renderer.healableTargets = actionResolver.getHealableTargets(selectedUnit.id);
+  } else {
+    renderer.healableTargets = [];
+  }
+}
+
+function clearSelection() {
+  selectedUnit = null;
+  phase        = 'select';
+  renderer.clearSelection();
+  updateUnitInfo(null);
+}
+
+// CPUターンを少し遅延させてから実行（描画に反映させるため）
+function executeCpuTurnAsync() {
+  setTimeout(() => {
+    turnManager.executeCpuTurn();
+    addLog(`[T${gameState.currentTurn - 1}] CPU turn ended`, 'log-move');
+    clearSelection();
+
+    if (gameState.isGameOver) {
+      addLog(`Game Over! Winner: ${gameState.winner}`, 'log-territory');
+    }
+  }, 300);
+}
+
+// ─── クリックイベント ──────────────────────────────────
+canvas.addEventListener('click', (e) => {
+  // プレイヤーのターン以外は操作不可
+  if (gameState.currentPlayer !== 'player' || gameState.isGameOver) return;
+
+  const { x, y } = getCellFromEvent(e);
+
+  if (phase === 'select') {
+    // ユニット選択
+    const units = gameState.getUnitsAt(x, y);
+    const playerUnit = units.find(u => u.owner === 'player' && u.isAlive);
+    if (playerUnit) {
+      selectedUnit            = playerUnit;
+      renderer.selectedUnitId = playerUnit.id;
+
+      // 移動可能マスを計算
+      renderer.movablePositions = playerUnit.hasMoved
+        ? []
+        : actionResolver.getMovablePositions(playerUnit.id);
+
+      refreshHighlights();
+      updateUnitInfo(playerUnit);
+      phase = 'move';
+    }
+
+  } else if (phase === 'move') {
+    // 移動先クリックか別ユニット選択か攻撃/回復か
+    const units     = gameState.getUnitsAt(x, y);
+    const ownUnit   = units.find(u => u.owner === 'player' && u.isAlive);
+    const enemyUnit = units.find(u => u.owner === 'cpu'    && u.isAlive);
+
+    if (ownUnit && ownUnit !== selectedUnit &&
+        selectedUnit.type === 'Cleric' && !selectedUnit.hasHealed &&
+        renderer.healableTargets.some(t => t.id === ownUnit.id)) {
+      // Clericの回復
+      actionResolver.healUnit(selectedUnit.id, ownUnit.id);
+      addLog(`[T${gameState.currentTurn}] ${selectedUnit.id} → ${ownUnit.id} (+4 HP)`, 'log-heal');
+      refreshHighlights();
+      updateUnitInfo(selectedUnit);
+
+    } else if (enemyUnit && !selectedUnit.hasAttacked && selectedUnit.canAttack(enemyUnit)) {
+      // 攻撃
+      actionResolver.attackUnit(selectedUnit.id, enemyUnit.id);
+      addLog(`[T${gameState.currentTurn}] ${selectedUnit.id} → ${enemyUnit.id} (${selectedUnit.attack}dmg)`, 'log-attack');
+      refreshHighlights();
+      updateUnitInfo(selectedUnit);
+
+    } else if (renderer.movablePositions.some(p => p.x === x && p.y === y)) {
+      // 移動
+      actionResolver.moveUnit(selectedUnit.id, x, y);
+      addLog(`[T${gameState.currentTurn}] ${selectedUnit.id} moved to (${x},${y})`, 'log-move');
+      renderer.movablePositions = [];
+      refreshHighlights();
+      updateUnitInfo(selectedUnit);
+
+    } else if (ownUnit && ownUnit !== selectedUnit) {
+      // 別の味方ユニットを選択しなおす
+      selectedUnit            = ownUnit;
+      renderer.selectedUnitId = ownUnit.id;
+      renderer.movablePositions = ownUnit.hasMoved
+        ? []
+        : actionResolver.getMovablePositions(ownUnit.id);
+      refreshHighlights();
+      updateUnitInfo(ownUnit);
+
+    } else {
+      // 空白をクリック → 選択解除
+      clearSelection();
+    }
+  }
+});
+
+// ─── ログコピー ────────────────────────────────────────
+function buildGameLog() {
+  const pad2 = n => String(n).padStart(2, '0');
+  const ts   = new Date().toLocaleString('ja-JP');
+  const sep  = '─'.repeat(44);
+
+  const lines = [
+    '=== Tactics Game Log ===',
+    `日時:  ${ts}`,
+    `CPU AI: ${cpuAI.constructor.name}`,
+    sep,
+  ];
+
+  // logs は古い順に並んでいる（push で追加）
+  for (const log of gameState.logs) {
+    const t   = `T${pad2(log.turn)}`;
+    const who = log.player === 'player' ? '[player]' : '[cpu]   ';
+
+    if (log.type === 'move') {
+      lines.push(
+        `${t} ${who} MOVE  ${log.unitId.padEnd(22)} (${log.from.x},${log.from.y}) → (${log.to.x},${log.to.y})`
+      );
+    } else if (log.type === 'attack') {
+      const kill = log.targetKilled ? ' 【撃破】' : '';
+      lines.push(
+        `${t} ${who} ATK   ${log.unitId.padEnd(22)} → ${log.targetId}  -${log.damage}dmg (HP残:${log.targetHpAfter})${kill}`
+      );
+    } else if (log.type === 'counter_attack') {
+      const kill = log.targetKilled ? ' 【撃破】' : '';
+      lines.push(
+        `${t} ${who} CNT   ${log.unitId.padEnd(22)} → ${log.targetId}  -${log.damage}dmg (HP残:${log.targetHpAfter})${kill} ← 反撃`
+      );
+    } else if (log.type === 'heal') {
+      lines.push(
+        `${t} ${who} HEAL  ${log.unitId.padEnd(22)} → ${log.targetId}  +${log.healAmount}HP (HP残:${log.targetHpAfter})`
+      );
+    } else if (log.type === 'territory') {
+      lines.push(
+        `${t} ${who} TERR  ${log.territoryName.padEnd(22)} → ${log.controller}  +1pt`
+      );
+    }
+  }
+
+  lines.push(sep);
+  lines.push(`FINAL:  Player ${gameState.scores.player}  /  CPU ${gameState.scores.cpu}`);
+  if (gameState.isGameOver) {
+    lines.push(`Winner: ${gameState.winner}`);
+  } else {
+    lines.push(`(ゲーム進行中 Turn ${gameState.currentTurn})`);
+  }
+
+  return lines.join('\n');
+}
+
+document.getElementById('log-copy-btn').addEventListener('click', () => {
+  const text = buildGameLog();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('log-copy-btn');
+      const orig = btn.textContent;
+      btn.textContent = '✅ コピー完了!';
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    });
+  } else {
+    // フォールバック
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.getElementById('log-copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✅ コピー完了!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }
+});
+
+// ─── AI セレクタ / New Game ────────────────────────────
+document.getElementById('ai-select').value = _aiType;
+document.getElementById('new-game-btn').addEventListener('click', () => {
+  const ai = document.getElementById('ai-select').value;
+  window.location.href = `index.html?ai=${ai}`;
+});
+
+// ─── ターン終了ボタン ──────────────────────────────────
+document.getElementById('end-turn-btn').addEventListener('click', () => {
+  if (gameState.currentPlayer !== 'player' || gameState.isGameOver) return;
+
+  clearSelection();
+  turnManager.endPlayerTurn();
+
+  if (!gameState.isGameOver && gameState.currentPlayer === 'cpu') {
+    addLog(`[T${gameState.currentTurn}] CPU thinking...`, 'log-move');
+    executeCpuTurnAsync();
+  }
+
+  if (gameState.isGameOver) {
+    addLog(`Game Over! Winner: ${gameState.winner}`, 'log-territory');
+  }
+});
+</script>
+
 </body>
 </html>
