@@ -116,7 +116,7 @@ class TerritorialAI extends BaseAI {
   // スティッキー割り当てを更新する
   // 1. 死亡ユニットのクリア
   // 2. 陣地を敵に奪われたユニット → 強制再割り当て
-  // 3. 安全確保済み陣地内の余剰ユニット → 未確保陣地があれば再配置
+  // 3. 安全確保済み陣地内の余剰ユニット → 1ターン1体ずつ漸次再配置（ガリソン2体維持）
   // 4. 未割り当て戦闘ユニットへの新規割り当て
   _refreshStickyAssignments(units, territories, state, oppOwner) {
     const terManager = new TerritoryManager(state);
@@ -131,6 +131,8 @@ class TerritorialAI extends BaseAI {
 
     // 2 & 3. 既存割り当ての有効性チェック
     const combatUnits = units.filter(u => u.type !== 'Cleric');
+    // 3用: 1ターンに1陣地から離脱させるユニットは1体まで（全員一斉離脱による陣地空白を防ぐ）
+    const redirectedFrom = new Set();
     for (const unit of combatUnits) {
       const terrName = this._stickyAssignments[unit.id];
       if (!terrName) continue;
@@ -145,8 +147,9 @@ class TerritorialAI extends BaseAI {
         continue;
       }
 
-      // 3. 自軍支配かつownCount>=2の陣地内にいる余剰ユニット → 未確保陣地があれば再配置
-      if (status.controller === this.owner && ownCount >= 2) {
+      // 3. 自軍支配かつownCount>=3の陣地内にいる余剰ユニット → 1ターン1体ずつ漸次再配置
+      // ownCount>=3 を条件にして、離脱後も最低2体のガリソンを確保する
+      if (status.controller === this.owner && ownCount >= 3 && !redirectedFrom.has(terrName)) {
         const inTerritory = unit.position.x >= ox && unit.position.x < ox + 3 &&
                             unit.position.y >= oy && unit.position.y < oy + 3;
         if (inTerritory) {
@@ -156,6 +159,7 @@ class TerritorialAI extends BaseAI {
           });
           if (hasUnsecured) {
             delete this._stickyAssignments[unit.id];
+            redirectedFrom.add(terrName); // このターンはこの陣地から1体のみ離脱
           }
         }
       }
